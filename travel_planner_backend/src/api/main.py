@@ -5,12 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.api.routes.itinerary import router as itinerary_router
 from src.api.routes.trips import router as trips_router
 from src.db.session import get_db
 
 openapi_tags = [
     {"name": "System", "description": "Health checks and system endpoints."},
     {"name": "Trips", "description": "Create, view, update, delete, and list trips."},
+    {"name": "Itinerary", "description": "Manage itinerary items linked to trips."},
 ]
 
 app = FastAPI(
@@ -30,6 +32,7 @@ app.add_middleware(
 
 # Register API routers
 app.include_router(trips_router)
+app.include_router(itinerary_router)
 
 
 @app.get("/", tags=["System"], summary="Health check", description="Basic service liveness check.")
