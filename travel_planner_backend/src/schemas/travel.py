@@ -40,6 +40,30 @@ class DestinationRead(DestinationBase):
     id: uuid.UUID = Field(..., description="Destination UUID")
 
 
+class DestinationSearchResult(_BaseSchema):
+    """Destination search result item.
+
+    Note:
+        This schema is intentionally narrow and optimized for search/list UIs.
+    """
+
+    id: uuid.UUID = Field(..., description="Destination UUID")
+    name: str = Field(..., description="Destination name", max_length=200)
+    country: Optional[str] = Field(None, description="Country", max_length=100)
+    city: Optional[str] = Field(None, description="City", max_length=100)
+    popularity: Optional[int] = Field(None, description="Popularity score (higher means more popular)")
+    score: Optional[float] = Field(None, description="Optional search relevance score (if available)")
+
+
+class DestinationSearchResponse(_BaseSchema):
+    """Paginated response for destination search."""
+
+    total: int = Field(..., description="Total number of matching destinations (ignores pagination)")
+    limit: int = Field(..., description="Page size limit used for this response", ge=1, le=100)
+    offset: int = Field(..., description="Offset used for this response", ge=0)
+    items: list[DestinationSearchResult] = Field(..., description="Matching destinations in the current page")
+
+
 class ItineraryItemBase(_BaseSchema):
     trip_id: uuid.UUID = Field(..., description="Trip UUID")
     day: int = Field(..., description="Day number within trip (1..N)", ge=1)

@@ -49,7 +49,9 @@ class Destination(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    popularity: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     itinerary_items: Mapped[list["ItineraryItem"]] = relationship(
         back_populates="destination",
@@ -57,8 +59,32 @@ class Destination(Base):
     )
 
 
+# Basic btree indexes (useful for equality filtering and some planner strategies)
 Index("idx_destinations_name", Destination.name)
 Index("idx_destinations_country", Destination.country)
+Index("idx_destinations_city", Destination.city)
+Index("idx_destinations_popularity", Destination.popularity)
+
+# Trigram-based indexes for fast ILIKE/partial match searches.
+# NOTE: Requires PostgreSQL extension `pg_trgm` to be enabled.
+Index(
+    "idx_destinations_name_trgm",
+    Destination.name,
+    postgresql_using="gin",
+    postgresql_ops={"name": "gin_trgm_ops"},
+)
+Index(
+    "idx_destinations_country_trgm",
+    Destination.country,
+    postgresql_using="gin",
+    postgresql_ops={"country": "gin_trgm_ops"},
+)
+Index(
+    "idx_destinations_city_trgm",
+    Destination.city,
+    postgresql_using="gin",
+    postgresql_ops={"city": "gin_trgm_ops"},
+)
 
 
 class ItineraryItem(Base):
