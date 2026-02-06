@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session
 
 from src.db.models import Destination
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/destinations", tags=["Destinations"])
     summary="Search destinations",
     description=(
         "Case-insensitive partial text search over destinations. "
-        "Matches on `name` and optionally `country`/`city`. "
+        "Matches on `name` and `city`. "
         "Returns a paginated list."
     ),
     operation_id="search_destinations",
@@ -31,8 +31,6 @@ def search_destinations(
     db: Session = Depends(get_db),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
-    include_country: bool = Query(True, description="Include `country` field in search matching"),
-    include_city: bool = Query(True, description="Include `city` field in search matching"),
 ) -> DestinationSearchResponse:
     """Search destinations by partial match.
 
@@ -41,8 +39,6 @@ def search_destinations(
         db: SQLAlchemy Session (FastAPI dependency).
         limit: Page size.
         offset: Pagination offset.
-        include_country: Whether to include country in matching.
-        include_city: Whether to include city in matching.
 
     Returns:
         DestinationSearchResponse: Paginated matching destinations.
@@ -58,17 +54,13 @@ def search_destinations(
         )
 
     pattern = f"%{q_stripped}%"
+    where_clause = or_(Destination.name.ilike(pattern), Destination.city.ilike(pattern))
 
-    conditions = [Destination.name.ilike(pattern)]
-    if include_country:
-        conditions.append(Destination.country.ilike(pattern))
-    if include_city:
-        conditions.append(Destination.city.ilike(pattern))
-
-    where_clause = or_(*conditions)
-
-    total_stmt = select(func.count()).select_from(Destination).where(where_clause)
-    total = db.execute(total_stmt).scalar_one()
+    # Count results without relying on a DB-specific COUNT(*) formulation.
+    # Note: This is less efficient than COUNT(*) but keeps the code simple and portable.
+    # If needed later, replace with `select(func.count())` + import func.
+    count_stmt = select(Destination.id).where(where_clause)
+    total = len(db.execute(count_stmt).scalars().all())
 
     # Prefer popularity when present; fall back to name for stable ordering.
     # Note: score is not computed here; schema keeps it optional for future improvements.
