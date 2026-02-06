@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -17,8 +18,26 @@ class Settings:
 
     @property
     def sqlalchemy_database_uri(self) -> str:
-        """Build a SQLAlchemy psycopg URL for PostgreSQL."""
-        # psycopg3 SQLAlchemy dialect uses `postgresql+psycopg`
+        """Build a SQLAlchemy psycopg URL for PostgreSQL.
+
+        Supports two formats for POSTGRES_URL:
+        - host only (e.g. "localhost" or "db")
+        - full DSN (e.g. "postgresql://user:pass@host:port/db" or "postgresql://host:port/db")
+
+        We always normalize to SQLAlchemy's psycopg3 dialect: "postgresql+psycopg://...".
+        """
+        raw = self.postgres_url.strip()
+
+        # If POSTGRES_URL looks like a DSN, parse it and prefer its host/port/db when present.
+        if "://" in raw:
+            parsed = urlparse(raw)
+            host = parsed.hostname or self.postgres_host
+            port = str(parsed.port) if parsed.port is not None else self.postgres_port
+            db = parsed.path.lstrip("/") or self.postgres_db
+
+            return f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}@{host}:{port}/{db}"
+
+        # Host-only format.
         return (
             f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -56,18 +75,13 @@ def get_settings() -> Settings:
 
     # POSTGRES_URL may be either:
     # - host only (e.g. localhost)
-    # - full URL (e.g. postgresql://user:pass@host:port/db)
-    # We keep parsing minimal and robust: if it contains '://', try to extract host.
+    # - full URL/DSN (e.g. postgresql://user:pass@host:port/db or postgresql://host:port/db)
+    # If it's a DSN, extract the hostname safely; otherwise treat it as host.
     postgres_host = postgres_url.strip()
-    if "://" in postgres_host and "@" in postgres_host:
-        # naive split: scheme://creds@host:port/db
-        try:
-            after_at = postgres_host.split("@", 1)[1]
-            host_port_and_path = after_at.split("/", 1)[0]
-            postgres_host = host_port_and_path.split(":", 1)[0]
-        except Exception:
-            # Fall back to raw POSTGRES_URL as host; engine creation will fail with a clear error.
-            postgres_host = postgres_url.strip()
+    if "://" in postgres_host:
+        parsed = urlparse(postgres_host)
+        if parsed.hostname:
+            postgres_host = parsed.hostname
 
     return Settings(
         postgres_url=postgres_url,

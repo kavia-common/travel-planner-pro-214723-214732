@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.api.routes.destinations import router as destinations_router
@@ -55,6 +56,22 @@ def health_check():
 
 
 @app.get(
+    "/api/health",
+    tags=["System"],
+    summary="API health check",
+    description="Health endpoint used by the platform readiness probe.",
+    operation_id="api_health_check",
+)
+def api_health_check():
+    """API health check endpoint.
+
+    Returns:
+        dict: A simple message indicating the API is ready to accept traffic.
+    """
+    return {"status": "ok"}
+
+
+@app.get(
     "/health/db",
     tags=["System"],
     summary="Database connectivity check",
@@ -68,6 +85,13 @@ def db_health_check(db: Session = Depends(get_db)):
 
     Returns:
         dict: Connection status.
+
+    Raises:
+        fastapi.HTTPException: 503 if database is unreachable.
     """
-    db.execute(text("SELECT 1"))
-    return {"database": "ok"}
+    try:
+        db.execute(text("SELECT 1"))
+        return {"database": "ok"}
+    except SQLAlchemyError as exc:
+        # Important: do not crash the app; report DB as unavailable.
+        return {"database": "unavailable", "detail": str(exc)}, status.HTTP_503_SERVICE_UNAVAILABLE
