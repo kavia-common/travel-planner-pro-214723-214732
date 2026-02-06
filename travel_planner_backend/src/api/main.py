@@ -6,6 +6,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.api.routes.itinerary import router as itinerary_router
+from src.api.routes.notes import router as notes_router
+from src.api.routes.reminders import router as reminders_router
 from src.api.routes.trips import router as trips_router
 from src.db.session import get_db
 
@@ -13,6 +15,8 @@ openapi_tags = [
     {"name": "System", "description": "Health checks and system endpoints."},
     {"name": "Trips", "description": "Create, view, update, delete, and list trips."},
     {"name": "Itinerary", "description": "Manage itinerary items linked to trips."},
+    {"name": "Notes", "description": "Manage notes linked to trips."},
+    {"name": "Reminders", "description": "Manage reminders linked to trips."},
 ]
 
 app = FastAPI(
@@ -33,6 +37,8 @@ app.add_middleware(
 # Register API routers
 app.include_router(trips_router)
 app.include_router(itinerary_router)
+app.include_router(notes_router)
+app.include_router(reminders_router)
 
 
 @app.get("/", tags=["System"], summary="Health check", description="Basic service liveness check.")
